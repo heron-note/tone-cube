@@ -1,0 +1,358 @@
+:root {
+  --bg0: #141c22;
+  --bg1: #1a2329;
+  --bg2: #243038;
+  --ink: #e8f0f4;
+  --muted: #8aa0ab;
+  --accent: #3ecf9a;
+  --glow: #ffe08a;
+  --rail: #0f1519;
+  --cell-gap: 2px;
+  --row-h: 44px;
+  --ctrl-lock: 26px;
+  --ctrl-dial: 32px;
+  --ctrl-oct: 28px;
+  --radius: 8px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  height: 100%;
+  background:
+    radial-gradient(120% 80% at 50% -10%, #2a4550 0%, transparent 55%),
+    radial-gradient(90% 60% at 100% 100%, #1e3a32 0%, transparent 45%),
+    linear-gradient(165deg, var(--bg0), var(--bg1) 45%, #10161a);
+  color: var(--ink);
+  font-family: "DM Sans", system-ui, sans-serif;
+  overscroll-behavior: none;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body {
+  overflow: hidden;
+}
+
+.app {
+  height: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: calc(12px + var(--safe-t)) 14px calc(16px + var(--safe-b));
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: 10px;
+  align-content: start;
+}
+
+.top {
+  text-align: center;
+}
+
+.brand {
+  margin: 0;
+  font-family: Syne, "DM Sans", sans-serif;
+  font-weight: 800;
+  font-size: clamp(1.45rem, 5.5vw, 1.85rem);
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.tagline {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.hand-toggle,
+.gate {
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 14px;
+  font: 700 0.78rem/1 "DM Sans", sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.hand-toggle {
+  background: color-mix(in srgb, var(--bg2) 90%, #fff);
+  color: var(--muted);
+  border: 1px solid color-mix(in srgb, #fff 8%, transparent);
+}
+
+.hand-toggle[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--rail));
+}
+
+.gate {
+  background: var(--accent);
+  color: #062218;
+}
+
+.gate[data-on="1"] {
+  background: color-mix(in srgb, var(--bg2) 90%, #fff);
+  color: var(--muted);
+}
+
+.stage {
+  min-height: 0;
+}
+
+.cube {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Default (right-handed): lock + timbre + octave on left, cells fill the rest */
+.row {
+  height: var(--row-h);
+  display: grid;
+  grid-template-columns:
+    var(--ctrl-lock)
+    var(--ctrl-dial)
+    var(--ctrl-oct)
+    1fr;
+  grid-template-areas: "lock dial oct cells";
+  gap: 3px;
+  padding: 1px;
+  border-radius: 10px;
+}
+
+.app.is-lefty .row {
+  grid-template-columns:
+    1fr
+    var(--ctrl-oct)
+    var(--ctrl-lock)
+    var(--ctrl-dial);
+  grid-template-areas: "cells oct lock dial";
+}
+
+.octave-rail {
+  grid-area: oct;
+  display: grid;
+  place-items: center;
+  background: var(--rail);
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, #fff 6%, transparent);
+  min-width: 0;
+}
+
+.oct-value {
+  font-family: Syne, sans-serif;
+  font-weight: 700;
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  transition: color 120ms ease, transform 120ms ease;
+}
+
+.oct-value.is-flash {
+  color: var(--accent);
+  transform: scale(1.1);
+}
+
+.cells-viewport {
+  grid-area: cells;
+  position: relative;
+  overflow: hidden;
+  height: 100%;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, #000 35%, var(--bg2));
+  border: 1px solid color-mix(in srgb, #fff 7%, transparent);
+  touch-action: none;
+}
+
+.row.is-locked .cells-viewport {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.cells-track {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  gap: var(--cell-gap);
+  padding: var(--cell-gap);
+  will-change: transform;
+}
+
+.cells-track.is-animating {
+  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.cell {
+  flex: 1 0 0;
+  min-width: 0;
+  border-radius: calc(var(--radius) - 3px);
+  position: relative;
+  isolation: isolate;
+  transition: filter 80ms linear, box-shadow 80ms linear;
+}
+
+.cell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, #fff 22%, transparent),
+    transparent 42%
+  );
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.cell .note-label {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: color-mix(in srgb, #fff 88%, transparent);
+  text-shadow: 0 1px 2px color-mix(in srgb, #000 45%, transparent);
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.cell.is-active {
+  filter: brightness(1.28) saturate(1.15);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--glow) 55%, transparent),
+    0 0 14px color-mix(in srgb, var(--glow) 50%, transparent),
+    inset 0 0 14px color-mix(in srgb, #fff 22%, transparent);
+  z-index: 1;
+}
+
+.lock-btn {
+  grid-area: lock;
+  border-radius: 6px;
+  background: var(--rail);
+  border: 1px solid color-mix(in srgb, #fff 8%, transparent);
+  color: var(--muted);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  min-width: 0;
+}
+
+.lock-btn[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--rail));
+}
+
+.lock-ico {
+  width: 11px;
+  height: 13px;
+  position: relative;
+  display: block;
+}
+
+.lock-ico::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 0;
+  width: 7px;
+  height: 6px;
+  border: 1.5px solid currentColor;
+  border-bottom: 0;
+  border-radius: 5px 5px 0 0;
+}
+
+.lock-ico::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 11px;
+  height: 7px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.lock-btn[aria-pressed="false"] .lock-ico::before {
+  transform: translateX(2px) rotate(18deg);
+  transform-origin: bottom left;
+}
+
+.row-dial {
+  grid-area: dial;
+  width: var(--ctrl-dial);
+  height: var(--ctrl-dial);
+  max-width: 100%;
+  max-height: 100%;
+  margin: auto;
+  border-radius: 50%;
+  touch-action: none;
+  cursor: grab;
+  position: relative;
+  background:
+    radial-gradient(circle at 35% 30%, #4a5a62, #1a2228 55%, #0c1014);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, #fff 10%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #fff 16%, transparent);
+}
+
+.row-dial:active {
+  cursor: grabbing;
+}
+
+.dial-face {
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background:
+    conic-gradient(from 0deg, #2a353c, #3a4850, #2a353c, #1e282e, #2a353c);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #000 35%, transparent);
+  transition: transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.dial-tick {
+  position: absolute;
+  left: 50%;
+  top: 3px;
+  width: 2px;
+  height: 6px;
+  margin-left: -1px;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 5px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+@media (min-width: 700px) {
+  .app {
+    max-width: 640px;
+  }
+
+  :root {
+    --row-h: 48px;
+    --ctrl-dial: 34px;
+  }
+}

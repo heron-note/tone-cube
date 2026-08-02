@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#1a2329" />
+    <title>Tone Cube</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,500;0,9..40,700;1,9..40,500&family=Syne:wght@700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css?v=3" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="top">
+        <h1 class="brand">Tone Cube</h1>
+        <p class="tagline">ロック中は横に揺らしてピッチ変化 · 解除で行ずらし</p>
+      </header>
+
+      <section class="toolbar" aria-label="設定">
+        <button
+          type="button"
+          id="handedness"
+          class="hand-toggle"
+          aria-pressed="false"
+          title="利き手モード"
+        >
+          右利き
+        </button>
+        <button type="button" id="audio-gate" class="gate">音を有効化</button>
+      </section>
+
+      <section class="stage" aria-label="演奏パッド">
+        <div id="cube" class="cube"></div>
+      </section>
+    </div>
+    <script type="module" src="app.js?v=3"></script>
+  </body>
+</html>
