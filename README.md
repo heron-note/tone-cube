@@ -6,7 +6,7 @@
 
 GitHub Pages:
 
-**https://dhatano.github.io/tone-cube/**
+**https://heron-note.github.io/tone-cube/**
 
 1. 先に「音を有効化」をタップ
 2. セルを押したまま演奏（ロック中は横に揺らすとピッチが変化）
