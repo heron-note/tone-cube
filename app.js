@@ -54,16 +54,29 @@ const activeTouches = new Map();
 
 let audioCtx = null;
 let masterGain = null;
-let audioGraph = null;
-/** iOS: headphone unplug can leave a live context routed nowhere — rebuild on next gesture. */
+/** iOS: headphone unplug can leave a dead route — rebuild on next gesture. */
 let audioNeedsRebuild = false;
+/** HTMLAudioElement used to take the iOS "playback" audio session (speaker + silent switch). */
+let sessionAudio = null;
+let lastOutputFingerprint = "";
 
 const cubeEl = document.getElementById("cube");
 const appEl = document.querySelector(".app");
 const handBtn = document.getElementById("handedness");
 const foldBtn = document.getElementById("fold-dials");
 
+// Minimal silent WAV (keeps iOS audio session in media/playback category)
+const SILENT_WAV =
+  "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==";
+
 // ——— Audio ———
+
+function isIOS() {
+  return (
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+  );
+}
 
 function markAudioDirty() {
   audioNeedsRebuild = true;
@@ -84,12 +97,11 @@ async function teardownAudio() {
   }
   audioCtx = null;
   masterGain = null;
-  audioGraph = null;
 }
 
 function buildAudioGraph(ctx) {
   const gain = ctx.createGain();
-  gain.gain.value = 0.35;
+  gain.gain.value = 0.4;
   const comp = ctx.createDynamicsCompressor();
   comp.threshold.value = -18;
   comp.knee.value = 12;
@@ -98,24 +110,68 @@ function buildAudioGraph(ctx) {
   comp.release.value = 0.12;
   gain.connect(comp).connect(ctx.destination);
   masterGain = gain;
-  audioGraph = { gain, comp };
+}
+
+function getSessionAudio() {
+  if (sessionAudio) return sessionAudio;
+  const el = new Audio();
+  el.src = SILENT_WAV;
+  el.loop = true;
+  el.preload = "auto";
+  el.volume = 0.01;
+  el.setAttribute("playsinline", "");
+  el.setAttribute("webkit-playsinline", "");
+  sessionAudio = el;
+  return el;
+}
+
+async function primeIosPlaybackSession() {
+  const el = getSessionAudio();
+  try {
+    el.muted = false;
+    el.volume = 0.01;
+    const p = el.play();
+    if (p) await p;
+  } catch {
+    /* gesture / autoplay policy — caller is already in a gesture */
+  }
+}
+
+async function outputFingerprint() {
+  if (!navigator.mediaDevices?.enumerateDevices) return "";
+  try {
+    const list = await navigator.mediaDevices.enumerateDevices();
+    return list
+      .filter((d) => d.kind === "audiooutput" || d.kind === "audioinput")
+      .map((d) => `${d.kind}:${d.deviceId}`)
+      .join("|");
+  } catch {
+    return "";
+  }
 }
 
 async function ensureAudio({ force = false } = {}) {
-  if (force || audioNeedsRebuild || audioCtx?.state === "closed") {
+  // Hold / refresh iOS audio session as "media playback" (speaker, silent switch)
+  await primeIosPlaybackSession();
+
+  const fp = await outputFingerprint();
+  if (lastOutputFingerprint && fp && fp !== lastOutputFingerprint) {
+    force = true;
+  }
+  if (fp) lastOutputFingerprint = fp;
+
+  if (force || audioNeedsRebuild || !audioCtx || audioCtx.state === "closed") {
     await teardownAudio();
     audioNeedsRebuild = false;
   }
 
   if (!audioCtx) {
     const AC = window.AudioContext || window.webkitAudioContext;
-    audioCtx = new AC();
+    audioCtx = new AC({ latencyHint: "interactive" });
     buildAudioGraph(audioCtx);
     audioCtx.addEventListener("statechange", () => {
-      if (audioCtx?.state === "interrupted" || audioCtx?.state === "suspended") {
-        // interrupted is WebKit-specific after route changes
-        markAudioDirty();
-      }
+      // WebKit sets "interrupted" on route loss; do NOT treat normal "suspended" as dirty
+      if (audioCtx?.state === "interrupted") markAudioDirty();
     });
   }
 
@@ -124,35 +180,39 @@ async function ensureAudio({ force = false } = {}) {
       await audioCtx.resume();
     } catch {
       markAudioDirty();
+      return false;
     }
   }
 
-  // Still not running after resume → rebuild next time
-  if (audioCtx.state !== "running") {
-    markAudioDirty();
+  // Kick the graph with a near-silent blip so the new route is actually claimed
+  try {
+    const blip = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
+    const src = audioCtx.createBufferSource();
+    src.buffer = blip;
+    const g = audioCtx.createGain();
+    g.gain.value = 0.0001;
+    src.connect(g).connect(audioCtx.destination);
+    src.start();
+  } catch {
+    /* */
   }
 
+  const ok = audioCtx.state === "running";
   const gate = document.getElementById("audio-gate");
   if (gate) {
-    gate.dataset.on = audioCtx.state === "running" ? "1" : "0";
-    gate.textContent = audioCtx.state === "running" ? "音ON" : "音を有効化";
+    gate.dataset.on = ok ? "1" : "0";
+    gate.textContent = ok ? "音ON" : "音を有効化";
+    if (isIOS()) {
+      gate.title = "鳴らないときは本体側面のリング／サイレントスイッチも確認";
+    }
   }
-  return audioCtx?.state === "running";
+  return ok;
 }
 
 function bindAudioRouteWatchers() {
-  // Bluetooth / wired route changes (earphone power off, disconnect)
   navigator.mediaDevices?.addEventListener?.("devicechange", () => {
     markAudioDirty();
   });
-
-  window.addEventListener("pagehide", markAudioDirty);
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") markAudioDirty();
-  });
-
-  // Some iOS versions fire this on audio session interruption end
-  window.addEventListener("focus", markAudioDirty);
 }
 
 function midiToFreq(midi) {
@@ -828,6 +888,11 @@ function bindRowDial(el, row) {
 buildCube();
 setDialsFolded(state.dialsFolded);
 setLefty(state.lefty);
+
+if (isIOS()) {
+  const hint = document.getElementById("ios-audio-hint");
+  if (hint) hint.hidden = false;
+}
 
 handBtn?.addEventListener("click", () => setLefty(!state.lefty));
 foldBtn?.addEventListener("click", () => setDialsFolded(!state.dialsFolded));

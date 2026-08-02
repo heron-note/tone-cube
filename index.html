@@ -15,13 +15,16 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,500;0,9..40,700;1,9..40,500&family=Syne:wght@700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=6" />
+    <link rel="stylesheet" href="styles.css?v=7" />
   </head>
   <body>
     <div class="app dials-folded">
       <header class="top">
         <h1 class="brand">Tone Cube</h1>
         <p class="tagline">ロック中は揺らしてピッチ · 解除で行ずらし</p>
+        <p class="hint-ios" id="ios-audio-hint" hidden>
+          スピーカーで無音のときは、本体側面のリング／サイレントをオフにして「音を有効化」をタップ
+        </p>
       </header>
 
       <section class="toolbar" aria-label="設定">
@@ -50,6 +53,6 @@
         <div id="cube" class="cube"></div>
       </section>
     </div>
-    <script type="module" src="app.js?v=6"></script>
+    <script type="module" src="app.js?v=7"></script>
   </body>
 </html>
