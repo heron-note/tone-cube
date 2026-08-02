@@ -54,6 +54,9 @@ const activeTouches = new Map();
 
 let audioCtx = null;
 let masterGain = null;
+let audioGraph = null;
+/** iOS: headphone unplug can leave a live context routed nowhere — rebuild on next gesture. */
+let audioNeedsRebuild = false;
 
 const cubeEl = document.getElementById("cube");
 const appEl = document.querySelector(".app");
@@ -62,23 +65,94 @@ const foldBtn = document.getElementById("fold-dials");
 
 // ——— Audio ———
 
-async function ensureAudio() {
-  if (!audioCtx) {
-    audioCtx = new AudioContext();
-    masterGain = audioCtx.createGain();
-    masterGain.gain.value = 0.35;
-    const comp = audioCtx.createDynamicsCompressor();
-    comp.threshold.value = -18;
-    comp.knee.value = 12;
-    comp.ratio.value = 3;
-    comp.attack.value = 0.003;
-    comp.release.value = 0.12;
-    masterGain.connect(comp).connect(audioCtx.destination);
+function markAudioDirty() {
+  audioNeedsRebuild = true;
+}
+
+async function teardownAudio() {
+  for (const id of [...activeVoices.keys()]) {
+    const voice = activeVoices.get(id);
+    if (voice) voice.dispose();
+    activeVoices.delete(id);
   }
-  if (audioCtx.state === "suspended") await audioCtx.resume();
+  if (audioCtx) {
+    try {
+      await audioCtx.close();
+    } catch {
+      /* */
+    }
+  }
+  audioCtx = null;
+  masterGain = null;
+  audioGraph = null;
+}
+
+function buildAudioGraph(ctx) {
+  const gain = ctx.createGain();
+  gain.gain.value = 0.35;
+  const comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = -18;
+  comp.knee.value = 12;
+  comp.ratio.value = 3;
+  comp.attack.value = 0.003;
+  comp.release.value = 0.12;
+  gain.connect(comp).connect(ctx.destination);
+  masterGain = gain;
+  audioGraph = { gain, comp };
+}
+
+async function ensureAudio({ force = false } = {}) {
+  if (force || audioNeedsRebuild || audioCtx?.state === "closed") {
+    await teardownAudio();
+    audioNeedsRebuild = false;
+  }
+
+  if (!audioCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AC();
+    buildAudioGraph(audioCtx);
+    audioCtx.addEventListener("statechange", () => {
+      if (audioCtx?.state === "interrupted" || audioCtx?.state === "suspended") {
+        // interrupted is WebKit-specific after route changes
+        markAudioDirty();
+      }
+    });
+  }
+
+  if (audioCtx.state !== "running") {
+    try {
+      await audioCtx.resume();
+    } catch {
+      markAudioDirty();
+    }
+  }
+
+  // Still not running after resume → rebuild next time
+  if (audioCtx.state !== "running") {
+    markAudioDirty();
+  }
+
   const gate = document.getElementById("audio-gate");
-  gate.dataset.on = "1";
-  gate.textContent = "音ON";
+  if (gate) {
+    gate.dataset.on = audioCtx.state === "running" ? "1" : "0";
+    gate.textContent = audioCtx.state === "running" ? "音ON" : "音を有効化";
+  }
+  return audioCtx?.state === "running";
+}
+
+function bindAudioRouteWatchers() {
+  // Bluetooth / wired route changes (earphone power off, disconnect)
+  navigator.mediaDevices?.addEventListener?.("devicechange", () => {
+    markAudioDirty();
+  });
+
+  window.addEventListener("pagehide", markAudioDirty);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") markAudioDirty();
+  });
+
+  // Some iOS versions fire this on audio session interruption end
+  window.addEventListener("focus", markAudioDirty);
 }
 
 function midiToFreq(midi) {
@@ -473,7 +547,6 @@ function startPlay(id, row, xNorm) {
 }
 
 function pointerDown(id, row, viewport, x, y) {
-  void ensureAudio();
   const xNorm = xNormFromClientX(viewport, x);
   activeTouches.set(id, {
     row,
@@ -488,12 +561,12 @@ function pointerDown(id, row, viewport, x, y) {
   const tryPlay = () => {
     const meta = activeTouches.get(id);
     if (!meta || meta.mode !== "pending") return;
-    if (!audioCtx) return;
+    if (!audioCtx || audioCtx.state !== "running") return;
     meta.mode = "play";
     startPlay(id, meta.row, meta.xNorm);
   };
-  if (audioCtx && audioCtx.state === "running") tryPlay();
-  else void ensureAudio().then(tryPlay);
+  // Always go through ensureAudio on gesture — rebuilds after headphone unplug on iOS
+  void ensureAudio().then(tryPlay);
 }
 
 function pointerMove(id, x, y) {
@@ -759,7 +832,9 @@ setLefty(state.lefty);
 handBtn?.addEventListener("click", () => setLefty(!state.lefty));
 foldBtn?.addEventListener("click", () => setDialsFolded(!state.dialsFolded));
 
-document.getElementById("audio-gate")?.addEventListener("click", () => ensureAudio());
+document.getElementById("audio-gate")?.addEventListener("click", () => {
+  void ensureAudio({ force: true });
+});
 
 document.body.addEventListener(
   "touchmove",
@@ -768,6 +843,8 @@ document.body.addEventListener(
   },
   { passive: false }
 );
+
+bindAudioRouteWatchers();
 
 window.addEventListener("mousemove", (e) => {
   if (!activeTouches.has("mouse")) return;
