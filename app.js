@@ -20,7 +20,7 @@ const TIMBRES = [
 ];
 
 const BASE_MIDI = 60;
-const ROW_COUNT = 5;
+const ROW_COUNT = 8;
 const COLS = 12;
 const AXIS_LOCK = 12;
 const OCT_STEP_PX = 28;
@@ -34,6 +34,7 @@ const state = {
   locked: Array(ROW_COUNT).fill(true),
   dialAngles: Array(ROW_COUNT).fill(0),
   lefty: false,
+  dialsFolded: true,
 };
 
 /** @type {Map<number|string, Voice>} */
@@ -57,6 +58,7 @@ let masterGain = null;
 const cubeEl = document.getElementById("cube");
 const appEl = document.querySelector(".app");
 const handBtn = document.getElementById("handedness");
+const foldBtn = document.getElementById("fold-dials");
 
 // ——— Audio ———
 
@@ -329,13 +331,18 @@ function refreshRowChrome(row) {
   const el = rowEl(row);
   if (!el) return;
   el.classList.toggle("is-locked", state.locked[row]);
-  const lockBtn = el.querySelector(".lock-btn");
-  if (lockBtn) {
-    lockBtn.setAttribute("aria-pressed", state.locked[row] ? "true" : "false");
-    lockBtn.title = state.locked[row] ? "横スクロールロック中" : "横スクロール解除";
-    lockBtn.setAttribute(
+  const meta = el.querySelector(".row-meta");
+  if (meta) {
+    const locked = state.locked[row];
+    meta.setAttribute("aria-pressed", locked ? "true" : "false");
+    meta.title = locked
+      ? `行${row + 1}: ロック中（タップで解除） / オクターブ ${formatOct(state.octaves[row])}`
+      : `行${row + 1}: 解除中（タップでロック） / オクターブ ${formatOct(state.octaves[row])}`;
+    meta.setAttribute(
       "aria-label",
-      state.locked[row] ? `行${row + 1}の横スクロールを解除` : `行${row + 1}の横スクロールをロック`
+      locked
+        ? `行${row + 1}のロックを解除。オクターブ ${formatOct(state.octaves[row])}`
+        : `行${row + 1}をロック。オクターブ ${formatOct(state.octaves[row])}`
     );
   }
   const face = el.querySelector(".row-dial .dial-face");
@@ -379,6 +386,18 @@ function setLefty(lefty) {
   });
 }
 
+function setDialsFolded(folded) {
+  state.dialsFolded = folded;
+  appEl?.classList.toggle("dials-folded", folded);
+  if (foldBtn) {
+    foldBtn.setAttribute("aria-pressed", folded ? "true" : "false");
+    foldBtn.textContent = folded ? "音色出す" : "音色隠す";
+  }
+  requestAnimationFrame(() => {
+    for (let r = 0; r < ROW_COUNT; r++) rebuildTrack(r);
+  });
+}
+
 function buildCube() {
   if (!cubeEl) return;
   cubeEl.innerHTML = "";
@@ -387,12 +406,15 @@ function buildCube() {
     row.className = "row";
     row.dataset.row = String(r);
 
-    const lockBtn = document.createElement("button");
-    lockBtn.type = "button";
-    lockBtn.className = "lock-btn";
-    lockBtn.innerHTML = '<span class="lock-ico" aria-hidden="true"></span>';
-    lockBtn.setAttribute("aria-pressed", state.locked[r] ? "true" : "false");
-    lockBtn.addEventListener("click", (e) => {
+    const meta = document.createElement("button");
+    meta.type = "button";
+    meta.className = "row-meta";
+    meta.innerHTML = `
+      <span class="lock-ico" aria-hidden="true"></span>
+      <span class="oct-value">${formatOct(state.octaves[r])}</span>
+    `;
+    meta.setAttribute("aria-pressed", state.locked[r] ? "true" : "false");
+    meta.addEventListener("click", (e) => {
       e.stopPropagation();
       setRowLock(r, !state.locked[r]);
     });
@@ -409,10 +431,6 @@ function buildCube() {
     dial.querySelector(".dial-face").style.transform = `rotate(${state.dialAngles[r]}deg)`;
     bindRowDial(dial, r);
 
-    const rail = document.createElement("div");
-    rail.className = "octave-rail";
-    rail.innerHTML = `<div class="oct-value">${formatOct(state.octaves[r])}</div>`;
-
     const viewport = document.createElement("div");
     viewport.className = "cells-viewport";
     viewport.dataset.row = String(r);
@@ -421,8 +439,7 @@ function buildCube() {
     track.dataset.row = String(r);
     viewport.appendChild(track);
 
-    // DOM order unused for layout (grid-areas); keep stable for a11y tree
-    row.append(lockBtn, dial, rail, viewport);
+    row.append(meta, dial, viewport);
     cubeEl.appendChild(row);
     rebuildTrack(r);
     bindRowGestures(viewport, r);
@@ -736,8 +753,11 @@ function bindRowDial(el, row) {
 // ——— Boot ———
 
 buildCube();
+setDialsFolded(state.dialsFolded);
+setLefty(state.lefty);
 
 handBtn?.addEventListener("click", () => setLefty(!state.lefty));
+foldBtn?.addEventListener("click", () => setDialsFolded(!state.dialsFolded));
 
 document.getElementById("audio-gate")?.addEventListener("click", () => ensureAudio());
 
