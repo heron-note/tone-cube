@@ -33,7 +33,6 @@ const state = {
   timbres: Array(ROW_COUNT).fill(0),
   locked: Array(ROW_COUNT).fill(true),
   dialAngles: Array(ROW_COUNT).fill(0),
-  lefty: false,
   dialsFolded: true,
 };
 
@@ -59,7 +58,6 @@ let audioNeedsRebuild = false;
 
 const cubeEl = document.getElementById("cube");
 const appEl = document.querySelector(".app");
-const handBtn = document.getElementById("handedness");
 const foldBtn = document.getElementById("fold-dials");
 
 // ——— Audio ———
@@ -122,11 +120,6 @@ async function ensureAudio({ force = false } = {}) {
   }
 
   const ok = audioCtx.state === "running";
-  const gate = document.getElementById("audio-gate");
-  if (gate) {
-    gate.dataset.on = ok ? "1" : "0";
-    gate.textContent = ok ? "音ON" : "音を有効化";
-  }
   return ok;
 }
 
@@ -429,24 +422,12 @@ function setRowTimbre(row, index, angle) {
   refreshRowChrome(row);
 }
 
-function setLefty(lefty) {
-  state.lefty = lefty;
-  appEl?.classList.toggle("is-lefty", lefty);
-  if (handBtn) {
-    handBtn.setAttribute("aria-pressed", lefty ? "true" : "false");
-    handBtn.textContent = lefty ? "左利き" : "右利き";
-  }
-  requestAnimationFrame(() => {
-    for (let r = 0; r < ROW_COUNT; r++) rebuildTrack(r);
-  });
-}
-
 function setDialsFolded(folded) {
   state.dialsFolded = folded;
   appEl?.classList.toggle("dials-folded", folded);
   if (foldBtn) {
     foldBtn.setAttribute("aria-pressed", folded ? "true" : "false");
-    foldBtn.textContent = folded ? "音色出す" : "音色隠す";
+    foldBtn.textContent = "トーン調整";
   }
   requestAnimationFrame(() => {
     for (let r = 0; r < ROW_COUNT; r++) rebuildTrack(r);
@@ -808,14 +789,8 @@ function bindRowDial(el, row) {
 
 buildCube();
 setDialsFolded(state.dialsFolded);
-setLefty(state.lefty);
 
-handBtn?.addEventListener("click", () => setLefty(!state.lefty));
 foldBtn?.addEventListener("click", () => setDialsFolded(!state.dialsFolded));
-
-document.getElementById("audio-gate")?.addEventListener("click", () => {
-  void ensureAudio({ force: true });
-});
 
 document.body.addEventListener(
   "touchmove",
