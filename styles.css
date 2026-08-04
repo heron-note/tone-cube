@@ -322,3 +322,17 @@ body {
     --ctrl-dial: 34px;
   }
 }
+
+/* タブレット横持ち：セルを広く */
+@media (min-width: 900px) {
+  :root {
+    --row-h: 82px;
+    --ctrl-dial: 40px;
+    --ctrl-meta: 30px;
+  }
+
+  .app {
+    max-width: min(100%, 1100px);
+    padding: calc(14px + var(--safe-t)) 28px calc(14px + var(--safe-b));
+  }
+}
