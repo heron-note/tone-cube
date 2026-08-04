@@ -323,7 +323,7 @@ body {
   }
 }
 
-/* タブレット横持ち：セルを広く */
+/* タブレット横持ち：セルを広く・トーン調整常時表示 */
 @media (min-width: 900px) {
   :root {
     --row-h: 82px;
@@ -334,5 +334,20 @@ body {
   .app {
     max-width: min(100%, 1100px);
     padding: calc(14px + var(--safe-t)) 28px calc(14px + var(--safe-b));
+  }
+
+  /* dials-folded 状態でもダイヤルを常時表示 */
+  .app.dials-folded .row {
+    grid-template-columns: var(--ctrl-meta) var(--ctrl-dial) 1fr;
+    grid-template-areas: "meta dial cells";
+  }
+
+  .app.dials-folded .row-dial {
+    display: block;
+  }
+
+  /* トグルボタンは不要なので非表示 */
+  .fold-toggle {
+    display: none;
   }
 }
